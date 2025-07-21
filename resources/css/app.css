@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+/* fuentes, etc. */
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+.content-wrapper {
+    background-image: url('/img/fondo.jpg'); /* Usa la ruta correcta */
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+
+.login-page {
+    background-image: url('/images/fondo_col.jpeg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
