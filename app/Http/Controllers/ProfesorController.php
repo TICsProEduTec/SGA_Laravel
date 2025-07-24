@@ -184,4 +184,5 @@ class ProfesorController extends Controller
 
         return $pdf->download("matriculas_curso_{$curso['shortname']}.pdf");
     }
+
 }

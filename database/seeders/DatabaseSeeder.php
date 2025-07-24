@@ -2,32 +2,24 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 class DatabaseSeeder extends Seeder
 {
     /**
      * Seed the application's database.
+     *
+     * @return void
      */
-    public function run(): void
+    public function run()
     {
-        // Usuario de prueba (Jahir)
-            User::create([
-            'name' => 'Jahir',
-            'email' => 'jahir@gmail.com',
-            'id_user_moodle' => 1001, // corregido
-            'ap_paterno' => 'Gómez',
-            'ap_materno' => 'Martínez',
-            'celular' => '0999999999',
-            'cedula' => '1100000000',
-            'grado' => '1BGU',
-            'periodo' => '2025',
-            'password' => Hash::make('jahir123'),
-        ]);
-
-        // Usuario administrador (admin@gmail.com)
+        // Comentar o eliminar otras líneas que llamen a otros seeders
+        // $this->call(OtherSeeder::class);
+        
+        // Llamar al AdminUserSeeder
         $this->call(AdminUserSeeder::class);
     }
 }

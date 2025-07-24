@@ -9,9 +9,20 @@
 @section('content')
     @foreach($datos as $grupo)
         <div class="card mb-4 shadow">
-            <div class="card-header bg-primary text-white">
-                <strong>{{ $grupo['curso'] }}</strong>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{ $grupo['curso'] }}</strong>
+                </div>
+                
+                {{-- Botón para descargar PDF --}}
+                <div>
+                    <a href="{{ route('profesor.reporte.generarPdf', ['cursoId' => $grupo['id']]) }}"
+                       class="btn btn-danger btn-sm">
+                        <i class="fas fa-file-pdf"></i> Descargar PDF
+                    </a>
+                </div>
             </div>
+            
             <div class="card-body">
                 @if(empty($grupo['estudiantes']))
                     <p>No hay estudiantes registrados.</p>
@@ -31,11 +42,9 @@
                                     <td>{{ $e['promedio'] }}</td>
                                     <td>
                                         <a href="{{ route('profesor.reporte.tareas', ['userId' => $e['id'], 'cursoId' => $grupo['id']]) }}"
-                                        class="btn btn-info btn-sm">
+                                           class="btn btn-info btn-sm">
                                             Ver Tareas
                                         </a>
-
-
                                     </td>
                                 </tr>
                             @endforeach

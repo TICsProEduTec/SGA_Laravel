@@ -3,7 +3,7 @@
 @section('title', 'Tareas del Estudiante')
 
 @section('content_header')
-    <h1>Notas de {{ $user->name }} en el curso {{ $curso->nombre }}</h1>
+    <h1>Notas de {{ $user->fullname }} en el curso {{ $curso->fullname }}</h1>
 @endsection
 
 @section('content')
@@ -14,26 +14,21 @@
             <thead>
                 <tr>
                     <th>Actividad</th>
-                    <th>Nota</th>
+                    <th>Enlace</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($tareas as $item)
+                @foreach($tareas as $tarea)
                     <tr>
-                        <td>{{ Str::replace('_', ' ', $item['itemname']) }}</td>
-                        <td>
-                            {{ 
-                                strip_tags($item['gradeformatted'] ?? '') 
-                                ?: number_format($item['grade'] ?? 0, 2, ',', '.') 
-                            }}
-                        </td>
+                        <td>{{ $tarea['name'] }}</td>
+                        <td><a href="{{ $tarea['url'] }}" class="btn btn-primary btn-sm">Ver tarea</a></td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
     @else
         <div class="alert alert-info">
-            No hay actividades calificadas para este curso.
+            No hay tareas disponibles para este curso.
         </div>
     @endif
 @endsection

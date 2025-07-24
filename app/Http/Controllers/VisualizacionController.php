@@ -106,8 +106,6 @@ class VisualizacionController extends Controller
         }
     }
 
-
-
     public function tareasCurso($cursoId)
     {
         $response = Http::get(config('services.moodle.endpoint'), [
