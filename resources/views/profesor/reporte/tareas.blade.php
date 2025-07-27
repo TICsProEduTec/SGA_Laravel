@@ -10,18 +10,26 @@
     <a href="{{ route('profesor.reporte.index') }}" class="btn btn-secondary mb-3">← Volver al reporte</a>
 
     @if(count($tareas))
-        <table class="table table-striped">
+        <table class="table table-bordered">
             <thead>
                 <tr>
                     <th>Actividad</th>
-                    <th>Enlace</th>
+                    <th>Nota</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach($tareas as $tarea)
                     <tr>
                         <td>{{ $tarea['name'] }}</td>
-                        <td><a href="{{ $tarea['url'] }}" class="btn btn-primary btn-sm">Ver tarea</a></td>
+                        <td>
+                            @if(is_numeric($tarea['nota']))
+                                <span class="{{ $tarea['nota'] < 7 ? 'text-danger' : 'text-success' }}">
+                                    {{ $tarea['nota'] }}
+                                </span>
+                            @else
+                                <span class="text-muted">{{ $tarea['nota'] }}</span>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
             </tbody>

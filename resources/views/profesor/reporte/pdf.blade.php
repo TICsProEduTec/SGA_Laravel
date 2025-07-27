@@ -72,8 +72,14 @@
             background-color: #f9f9f9;
         }
 
-        tr:hover td {
-            background-color: #f1f1f1;
+        .aprobado {
+            color: green;
+            font-weight: bold;
+        }
+
+        .reprobado {
+            color: red;
+            font-weight: bold;
         }
 
         .directrices {
@@ -112,6 +118,7 @@
                 <th>Nombre completo</th>
                 <th>Correo</th>
                 <th>Promedio</th>
+                <th>Estado</th>
             </tr>
         </thead>
         <tbody>
@@ -121,6 +128,11 @@
                     <td>{{ $estudiante['fullname'] }}</td>
                     <td>{{ $estudiante['email'] }}</td>
                     <td>{{ $estudiante['promedio'] }}</td>
+                    <td>
+                        <span class="{{ $estudiante['estado'] === 'Aprobado' ? 'aprobado' : 'reprobado' }}">
+                            {{ $estudiante['estado'] }}
+                        </span>
+                    </td>
                 </tr>
             @endforeach
         </tbody>
