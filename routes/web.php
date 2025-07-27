@@ -59,12 +59,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/profesor/matriculas', [ProfesorController::class, 'verMatriculas'])
         ->middleware(CheckRole::class . ':profesor')
         ->name('profesor.matriculas');
-
-    // Ruta para Generar pdf profesor    
-    Route::get('/profesor/matriculas/{courseId}/pdf', [ProfesorController::class, 'descargarMatriculasPdf'])
-    ->middleware(CheckRole::class . ':profesor')
-    ->name('profesor.matriculas.pdf');
-
         // DASHBOARD ADMIN
     Route::get('/admin/dashboard', [AdminController::class, 'index'])
         ->middleware(CheckRole::class . ':admin')
@@ -76,11 +70,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/visualizacion/datos/{cursoId}', [VisualizacionController::class, 'datosCurso']);
      Route::get('/visualizacion/tareas/{cursoId}', [VisualizacionController::class, 'tareasCurso']);
     
-    //Reporte
-
-    Route::get('/reporte', [ReporteController::class, 'index'])->name('profesor.reporte.index');
-    Route::get('/profesor/reporte/tareas/{userId}/{cursoId}', [ReporteController::class, 'verTareas'])
-    ->name('profesor.reporte.tareas');
 
 
     // DASHBOARD PROFESOR
@@ -137,10 +126,6 @@ Route::middleware('auth')->group(function () {
     Route::get('/grados/{grado}/usuarios/{user}/area/{area}/editar', [GradoController::class, 'editarNota'])->name('grado.editarNota');
     Route::get('grados/{grado}/notas/{user}/pdf', [GradoController::class, 'generarPDF'])->name('grado.generarPDF');
     Route::get('grados/{grado}/usuarios/{user}/notas.pdf', [GradoController::class, 'generarPDF'])->name('grados.notaspdf');
-   
-
-
-    
 
     // ÁREAS
     Route::resource('areas', AreaController::class)->names('areas');
