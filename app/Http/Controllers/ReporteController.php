@@ -13,7 +13,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReporteController extends Controller
 {
-    public function index()
+   public function index()
     {
         $profesor = Auth::user();
 
@@ -62,20 +62,44 @@ class ReporteController extends Controller
                 $json = $notas->json();
 
                 $promedio = 0;
-                if (isset($json['usergrades'][0]['gradeitems'])) {
-                    $total = collect($json['usergrades'][0]['gradeitems'])->firstWhere('itemtype', 'course');
-                    $promedio = $total['graderaw'] ?? 0;
+
+                if (!empty($json['usergrades'][0]['gradeitems'])) {
+                    $sumaNotas = 0;
+                    $cuentaNotas = 0;
+
+                    foreach ($json['usergrades'][0]['gradeitems'] as $item) {
+                        if (
+                            $item['itemtype'] === 'mod' &&
+                            isset($item['graderaw']) &&
+                            isset($item['grademax']) &&
+                            floatval($item['grademax']) > 0
+                        ) {
+                            $raw = floatval($item['graderaw']);
+                            $max = floatval($item['grademax']);
+                            $normalizada = ($raw / $max) * 10;
+                            $sumaNotas += $normalizada;
+                            $cuentaNotas++;
+                        }
+                    }
+
+                    if ($cuentaNotas > 0) {
+                        $promedio = round($sumaNotas / $cuentaNotas, 2);
+                    }
                 }
+
+                $estado = $promedio >= 7 ? 'Aprobado' : 'Reprobado';
 
                 $lista[] = [
                     'id' => $e['id'],
                     'fullname' => $e['fullname'] ?? $e['firstname'] . ' ' . $e['lastname'],
-                    'promedio' => number_format($promedio, 2),
+                    'promedio' => $promedio,
+                    'estado' => $estado,
                 ];
             }
 
             $datos[] = [
                 'curso' => $curso['fullname'],
+                'shortname' => $curso['shortname'],
                 'id' => $curso['id'],
                 'estudiantes' => $lista,
             ];
@@ -83,6 +107,8 @@ class ReporteController extends Controller
 
         return view('profesor.reporte.index', compact('datos'));
     }
+
+
 
     public function verTareas($userId, $cursoId)
     {
@@ -152,9 +178,6 @@ class ReporteController extends Controller
             return response($e->getMessage(), 500);
         }
     }
-
-
-
 
 
     public function generarRecursoPdf($cursoId)
@@ -242,7 +265,5 @@ class ReporteController extends Controller
         // Retornar el PDF como descarga
         return $pdf->download("reporte_notas_{$curso['shortname']}.pdf");
     }
-
-
 
 }

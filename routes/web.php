@@ -191,7 +191,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware(['auth'])->prefix('profesor/recursos')->group(function () {
             Route::get('/', [ContenidoController::class, 'index'])->name('recursos.index');
             Route::post('/', [ContenidoController::class, 'store'])->name('recursos.store');
-            Route::get('profesor/matriculas/pdf/{courseId}', [ReporteController::class, 'descargarMatriculasPdf'])->name('profesor.matriculas.pdf');
+            Route::get('profesor/matriculas/pdf/{courseId}', [ProfesorController::class, 'descargarMatriculasPdf'])->name('profesor.matriculas.pdf');
             Route::get('profesor/reporte/generar-pdf/{cursoId}', [ReporteController::class, 'generarRecursoPdf'])->name('profesor.reporte.generarPdf');
             Route::get('/profesor/reporte/tareas/{userId}/{cursoId}', [ReporteController::class, 'verTareas'])
             ->name('profesor.reporte.tareas');

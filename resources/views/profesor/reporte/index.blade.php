@@ -32,6 +32,7 @@
                             <tr>
                                 <th>Estudiante</th>
                                 <th>Promedio</th>
+                                <th>Estado</th> {{-- Nueva columna --}}
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -40,6 +41,11 @@
                                 <tr>
                                     <td>{{ $e['fullname'] }}</td>
                                     <td>{{ $e['promedio'] }}</td>
+                                    <td>
+                                        <span class="badge {{ $e['estado'] === 'Aprobado' ? 'bg-success' : 'bg-danger' }}">
+                                            {{ $e['estado'] }}
+                                        </span>
+                                    </td>
                                     <td>
                                         <a href="{{ route('profesor.reporte.tareas', ['userId' => $e['id'], 'cursoId' => $grupo['id']]) }}"
                                            class="btn btn-info btn-sm">

@@ -70,22 +70,37 @@ class VisualizacionController extends Controller
                 $data = $response->json();
 
                 if (!empty($data['usergrades'][0]['gradeitems'])) {
+                    $sumaNotas = 0;
+                    $cuentaNotas = 0;
+
                     foreach ($data['usergrades'][0]['gradeitems'] as $item) {
-                        if ($item['itemtype'] === 'course' && isset($item['graderaw'])) {
-                            $nota = floatval($item['graderaw']);
+                        if (
+                            $item['itemtype'] === 'mod' &&
+                            isset($item['graderaw']) &&
+                            isset($item['grademax']) &&
+                            floatval($item['grademax']) > 0
+                        ) {
+                            $raw = floatval($item['graderaw']);
+                            $max = floatval($item['grademax']);
+                            $normalizado = ($raw / $max) * 10; // Escala 10
 
-                            Log::info("👤 {$user['fullname']} → Nota Final: $nota");
+                            $sumaNotas += $normalizado;
+                            $cuentaNotas++;
+                        }
+                    }
 
-                            if ($nota > 0) {
-                                $contador++;
-                                $total += $nota;
+                    if ($cuentaNotas > 0) {
+                        $notaFinal = round($sumaNotas / $cuentaNotas, 2);
 
-                                if ($nota >= 70) {
-                                    $aprobados++;
-                                } else {
-                                    $reprobados++;
-                                }
-                            }
+                        Log::info("👤 {$user['fullname']} → Promedio escalado: $notaFinal");
+
+                        $contador++;
+                        $total += $notaFinal;
+
+                        if ($notaFinal >= 7) {
+                            $aprobados++;
+                        } else {
+                            $reprobados++;
                         }
                     }
                 }
@@ -105,6 +120,7 @@ class VisualizacionController extends Controller
             return response()->json(['error' => 'Error al obtener datos del curso.'], 500);
         }
     }
+
 
     public function tareasCurso($cursoId)
     {

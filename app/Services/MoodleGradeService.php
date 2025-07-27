@@ -63,8 +63,56 @@ class MoodleGradeService
      */
     public function getCourseGradesWithAverages(int $courseId): array
     {
-        return $this->getFinalGradesFromCourse($courseId);
+        $response = Http::asForm()->post($this->endpoint, [
+            'wstoken' => $this->token,
+            'wsfunction' => 'gradereport_user_get_grade_items',
+            'moodlewsrestformat' => 'json',
+            'courseid' => $courseId
+        ]);
+
+        if ($response->failed()) {
+            Log::error('❌ Moodle WS error al obtener items de notas.', ['response' => $response->body()]);
+            return [];
+        }
+
+        $data = $response->json();
+        $result = [];
+
+        foreach ($data['usergrades'] ?? [] as $user) {
+            $fullname = $user['userfullname'] ?? 'Desconocido';
+            $items = $user['gradeitems'] ?? [];
+
+            $suma = 0;
+            $conteo = 0;
+            $detalleItems = [];
+
+            foreach ($items as $item) {
+                // Ignorar "Total del curso"
+                if ($item['itemtype'] === 'course') continue;
+
+                if (isset($item['graderaw']) && is_numeric($item['graderaw'])) {
+                    $suma += $item['graderaw'];
+                    $conteo++;
+                    $detalleItems[] = [
+                        'itemname' => $item['itemname'],
+                        'grade' => $item['graderaw'],
+                        'itemtype' => $item['itemtype']
+                    ];
+                }
+            }
+
+            if ($conteo === 0) continue;
+
+            $result[] = [
+                'user_fullname' => $fullname,
+                'items' => $detalleItems,
+                'average' => round($suma / $conteo, 2)
+            ];
+        }
+
+        return $result;
     }
+
 
     /**
      * ✅ Nuevo: Obtener la nota final de un usuario específico en un curso.
@@ -81,4 +129,46 @@ class MoodleGradeService
 
         return null;
     }
+
+        /**
+     * 🔄 Cálculo manual del promedio si Moodle no calcula el total del curso.
+     */
+    public function getFinalGradesManual(int $courseId): array
+    {
+        $response = Http::asForm()->post($this->endpoint, [
+            'wstoken' => $this->token,
+            'wsfunction' => 'gradereport_user_get_grade_items',
+            'moodlewsrestformat' => 'json',
+            'courseid' => $courseId,
+        ]);
+
+        $json = $response->json();
+
+        if (!isset($json['usergrades'])) return [];
+
+        $resultados = [];
+
+        foreach ($json['usergrades'] as $userGrade) {
+            $suma = 0;
+            $conteo = 0;
+
+            foreach ($userGrade['gradeitems'] as $item) {
+                if ($item['itemtype'] === 'mod' && isset($item['graderaw']) && is_numeric($item['graderaw'])) {
+                    $suma += floatval($item['graderaw']);
+                    $conteo++;
+                }
+            }
+
+            $promedio = $conteo > 0 ? round($suma / $conteo, 2) : null;
+
+            $resultados[] = [
+                'user_id' => $userGrade['userid'],
+                'user_fullname' => $userGrade['userfullname'],
+                'finalgrade' => $promedio,
+            ];
+        }
+
+        return $resultados;
+    }
+
 }

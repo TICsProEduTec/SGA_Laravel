@@ -43,6 +43,22 @@ class RetroalimentacionAIController extends Controller
         try {
             $docente = Auth::user();
             $mensaje = strtolower($request->input('message', ''));
+            $mensajeNormalizado = Str::lower(Str::ascii($mensaje));
+            // 🟢 Sugerencias reales si el mensaje es "hola"
+            if (in_array($mensaje, ['hola', 'hola!', 'buenos días', 'buenas', 'hi', 'Hi'])) {
+                return response()->json([
+                    'respuesta' => "👋 ¡Hola {$docente->name}! Soy tu asistente académico. Aquí tienes algunas sugerencias que puedes probar:",
+                    'sugerencias' => [
+                        "📄 Analiza el PDF que subí",                      // Retroalimentación por curso
+                        "✏️ retroalimentación para Juan en Física",            // Retro específica por estudiante y materia
+                        "📊 Estudiantes reprobados en Matemáticas",            // Reprobados por materia
+                        "📁 Ver retroalimentación del PDF subido",             // Feedback desde archivo PDF
+                        "📋 Dame el listado de estudiantes reprobados"
+                    ]
+                ]);
+            }
+
+
             $userIdMoodle = $docente->id_user_moodle;
 
             if (!$userIdMoodle) {
@@ -52,18 +68,29 @@ class RetroalimentacionAIController extends Controller
             }
 
             $contenidoPDF = '';
+
+            // Si se subió un nuevo archivo PDF en esta petición
             if ($request->hasFile('archivo') && $request->file('archivo')->isValid()) {
                 try {
                     $parser = new \Smalot\PdfParser\Parser();
                     $pdf = $parser->parseFile($request->file('archivo')->getPathname());
                     $contenidoPDF = $pdf->getText();
+
+                    // Guardar en sesión
+                    Session::put('texto_pdf', $contenidoPDF);
+
+                    Log::info("✅ PDF procesado correctamente y guardado en sesión.");
                 } catch (\Throwable $e) {
                     Log::error("❌ Error al leer el PDF: " . $e->getMessage());
                     return response()->json([
                         'respuesta' => 'Error al procesar el archivo PDF.',
                     ], 500);
                 }
+            } elseif (Session::has('texto_pdf')) {
+                $contenidoPDF = Session::get('texto_pdf');
+                Log::info("📂 PDF recuperado desde sesión.");
             }
+
 
             $prefijo = '';
             if ($contenidoPDF && $mensaje) {
@@ -137,45 +164,53 @@ class RetroalimentacionAIController extends Controller
                 ]);
             }
 
-            // ✅ Resumen de notas
-            if (Str::contains($mensaje, ['reprobados', 'aprobados', 'no aprobaron', 'estudiantes que'])) {
-                $mensaje = strtolower(Str::ascii($mensaje)); // normaliza mensaje
+            // ✅ Resumen de notas promediadas (escaladas a 10) con detección robusta de mensaje
+            $mensajeNormalizado = Str::lower(Str::ascii($mensaje));
+            if (
+                Str::contains($mensajeNormalizado, 'reprobado') ||
+                Str::contains($mensajeNormalizado, 'aprobado') ||
+                Str::contains($mensajeNormalizado, 'quienes aprobaron y reprobaron') ||
+                Str::contains($mensajeNormalizado, 'listado de estudiantes reprobados') ||
+                Str::contains($mensajeNormalizado, 'ver reprobados') ||
+                Str::contains($mensajeNormalizado, 'mostrar reprobados')
+            ) {
                 $cursos = $this->obtenerCursosDelDocenteDesdeMoodle((int)$userIdMoodle);
                 $listadoReprobados = [];
                 $listadoAprobados = [];
 
-                // Detectar materia mencionada en el mensaje
-                $materiasDetectadas = ['fisica', 'matematicas', 'lengua', 'literatura', 'quimica', 'biologia', 'ingles'];
+                // Detección de materias
+                $materiasDetectadas = ['fisica', 'matematicas', 'lengua', 'lenguaje', 'literatura', 'quimica', 'biologia', 'ingles', 'lenguaj'];
                 $materiaFiltrada = null;
-
                 foreach ($materiasDetectadas as $materia) {
-                    if (Str::contains($mensaje, $materia)) {
+                    if (Str::contains($mensajeNormalizado, $materia)) {
                         $materiaFiltrada = $materia;
                         break;
                     }
                 }
 
                 foreach ($cursos as $curso) {
-                    // Normaliza nombre del curso para comparación
                     $nombreCursoNormalizado = Str::lower(Str::ascii($curso['fullname']));
 
-                    // Si se pidió una materia específica y el curso no coincide, se omite
                     if ($materiaFiltrada && !Str::contains($nombreCursoNormalizado, $materiaFiltrada)) {
                         continue;
                     }
 
-                    $notas = $this->gradeService->getFinalGradesFromCourse($curso['id']);
+                    // ✅ Usamos las notas promediadas
+                    $notas = $this->gradeService->getCourseGradesWithAverages($curso['id']);
 
                     foreach ($notas as $nota) {
-                        if (!isset($nota['finalgrade'])) continue;
+                        if (!isset($nota['average'])) continue;
+
+                        // Escalar nota sobre 10 si viene sobre 100
+                        $nota10 = $nota['average'] > 10 ? round($nota['average'] / 10, 2) : round($nota['average'], 2);
 
                         $item = [
                             'nombre' => $nota['user_fullname'],
                             'curso' => $curso['fullname'],
-                            'nota' => round($nota['finalgrade'], 2),
+                            'nota' => $nota10,
                         ];
 
-                        if ($nota['finalgrade'] < 7) {
+                        if ($nota10 < 7) {
                             $listadoReprobados[] = $item;
                         } else {
                             $listadoAprobados[] = $item;
@@ -183,22 +218,20 @@ class RetroalimentacionAIController extends Controller
                     }
                 }
 
-                // Si no hay resultados por materia
-                if ($materiaFiltrada && count($listadoAprobados) === 0 && count($listadoReprobados) === 0) {
-                    return response()->json([
-                        'respuesta' => "⚠️ No se encontraron estudiantes en cursos relacionados con la materia «{$materiaFiltrada}».",
-                    ]);
-                }
+                // ✅ Construcción del mensaje de respuesta
+                $respuesta = "📋 **Resumen de notas en tus cursos:**\n\n";
 
-                // Construcción de respuesta
-                $respuesta = "📋 **Resumen de notas";
-                $respuesta .= $materiaFiltrada ? " en «{$materiaFiltrada}»:" : " en tus cursos:";
-                $respuesta .= "**\n\n";
+                $soloReprobados = Str::contains($mensajeNormalizado, [
+                    'solo reprobados',
+                    'ver reprobados',
+                    'quienes reprobaron',
+                    'estudiantes reprobados',
+                    'dame el listado de estudiantes reprobados',
+                    'listado de estudiantes reprobados',
+                    'mostrar reprobados'
+                ]) && !Str::contains($mensajeNormalizado, 'aprobado');
 
-                // Detectar si el mensaje solicita solo reprobados
-                $soloReprobados = Str::contains($mensaje, ['solo reprobados', 'ver reprobados', 'quienes reprobaron', 'estudiantes reprobados']);
-
-                if ($soloReprobados || (Str::contains($mensaje, 'reprobados') && !Str::contains($mensaje, 'aprobados'))) {
+                if ($soloReprobados) {
                     if (count($listadoReprobados) > 0) {
                         $respuesta .= "❌ Estudiantes reprobados:\n";
                         foreach ($listadoReprobados as $est) {
@@ -222,10 +255,19 @@ class RetroalimentacionAIController extends Controller
                             $respuesta .= "- {$est['nombre']} ({$est['curso']}): Nota {$est['nota']}\n";
                         }
                     }
+
+                    if (count($listadoAprobados) === 0 && count($listadoReprobados) === 0) {
+                        $respuesta .= "⚠️ No se encontraron estudiantes con notas en los cursos analizados.";
+                    }
                 }
 
-                return response()->json(['respuesta' => $respuesta]);
+                return response()->json([
+                    'respuesta' => $respuesta,
+                    'reprobados' => $listadoReprobados,
+                    'aprobados' => $listadoAprobados,
+                ]);
             }
+
 
             // 🔁 Retroalimentación específica para estudiante y materia
             if (Str::contains($mensaje, 'retroalimentación para')) {
@@ -288,6 +330,7 @@ class RetroalimentacionAIController extends Controller
                     'respuesta' => "⚠️ No se encontró al estudiante «{$nombreEstudiante}» en un curso que coincida con «{$materia}».",
                 ]);
             }
+            
 
             // ✅ Generar retroalimentación directamente desde el PDF subido o desde 'Mis Recursos'
             if (Str::contains($mensaje, ['pdf que subí', 'pdf subido', 'pdf adjunto']) && $contenidoPDF) {
@@ -318,9 +361,110 @@ class RetroalimentacionAIController extends Controller
                 ]);
             }
 
+            // Definir $urlPdf con valor predeterminado vacío para evitar el error
+            $urlPdf = '';
 
+            $contenidoPDF = '';
+            if ($request->hasFile('archivo') && $request->file('archivo')->isValid()) {
+                try {
+                    $parser = new \Smalot\PdfParser\Parser();
+                    $pdf = $parser->parseFile($request->file('archivo')->getPathname());
+                    $contenidoPDF = $pdf->getText();
+                } catch (\Throwable $e) {
+                    Log::error("❌ Error al leer el PDF: " . $e->getMessage());
+                    return response()->json([
+                        'respuesta' => 'Error al procesar el archivo PDF.',
+                    ], 500);
+                }
+            }
 
+            $prefijo = '';
+            if ($contenidoPDF && $mensaje) {
+                $prefijo = "El docente escribió lo siguiente: {$mensaje}\n\nAdemás, analiza el siguiente documento PDF:\n\n{$contenidoPDF}";
+            } elseif ($contenidoPDF) {
+                $prefijo = "Analiza el siguiente documento PDF:\n\n{$contenidoPDF}";
+            } elseif ($mensaje) {
+                $prefijo = "El docente pregunta: {$mensaje}";
+            } else {
+                return response()->json(['respuesta' => '❌ Debe ingresar un mensaje o subir un archivo PDF.'], 422);
+            }
 
+            // 🧠 Generación de preguntas GIFT desde el PDF subido
+            if (
+                Str::contains($mensajeNormalizado, 'gift') &&
+                Str::contains($mensajeNormalizado, ['genera', 'crear', 'banco de preguntas']) &&
+                $contenidoPDF
+            ) {
+                $prompt = "A partir del siguiente contenido extraído del PDF, genera 10 preguntas en formato GIFT (compatibles con Moodle). Utiliza exclusivamente el contenido del texto. No expliques, solo genera las preguntas.\n\nContenido del PDF:\n" . $contenidoPDF;
+
+                $respuestaIA = $this->iaService->generarTexto($prompt);
+                $contenido = $respuestaIA['output'] ?? 'No se pudo generar preguntas GIFT.';
+
+                $filenameGift = 'preguntas_gift_' . Str::slug(now()) . '.gift';
+                Storage::disk('public')->put('ia_docs/' . $filenameGift, $contenido);
+                $urlGift = asset('storage/ia_docs/' . $filenameGift);
+
+                return response()->json([
+                    'respuesta' => '🎁 Banco de preguntas GIFT generado correctamente.',
+                    'contenido' => $contenido,
+                    'gift' => $urlGift
+                ]);
+            }
+
+            if ($contenidoPDF && $mensaje) {
+                // 🧠 DEBUG LOG: Confirmar entrada
+                Log::info("✅ Bloque activo: mensaje + contenidoPDF detectado.");
+
+                // Limitar contenido para evitar exceso de tokens (máximo 3000 caracteres)
+                $contenidoReducido = Str::limit($contenidoPDF, 3000, '[...]');
+
+                // Prompt detallado para OpenAI
+                $prompt = <<<PROMPT
+            📄 Este es el contenido del sílabo extraído desde el PDF:
+
+            {$contenidoReducido}
+
+            📌 El docente solicita lo siguiente:
+            "{$mensaje}"
+
+            🎯 Tu tarea es:
+            - Analizar el contenido del sílabo.
+            - Generar una **RETROALIMENTACIÓN académica breve y motivadora** para los estudiantes que han reprobado.
+            - Generar **5 preguntas tipo test en formato GIFT** sobre los temas tratados (auditoría TI, riesgos, peritaje, etc.).
+            - NO EXPLIQUES el proceso. SOLO entrega los resultados.
+            - Usa solamente el contenido del sílabo, no inventes.
+
+            ✅ Estructura de respuesta requerida:
+
+            RETROALIMENTACIÓN:
+            [Texto motivacional personalizado aquí]
+
+            PREGUNTAS GIFT:
+            [PREGUNTA 1 en GIFT]
+            [PREGUNTA 2 en GIFT]
+            ...
+            PROMPT;
+
+                // 🧠 DEBUG LOG: Prompt generado
+                Log::info("🧠 Prompt enviado a OpenAI:", ['prompt' => $prompt]);
+
+                // Generar respuesta de IA
+                $respuestaIA = $this->iaService->generarTexto($prompt);
+                $contenidoRespuesta = $respuestaIA['output'] ?? '❌ No se pudo generar la respuesta.';
+
+                // 🧠 DEBUG LOG: Respuesta de OpenAI
+                Log::info("📥 Respuesta recibida de OpenAI:", ['respuesta' => $contenidoRespuesta]);
+
+                // Guardar como archivo .txt en /public/ia_docs/
+                $filename = 'respuesta_pdf_' . Str::slug(now()) . '.txt';
+                Storage::disk('public')->put('ia_docs/' . $filename, $contenidoRespuesta);
+                $urlTxt = asset('storage/ia_docs/' . $filename);
+
+                return response()->json([
+                    'respuesta' => $contenidoRespuesta,
+                    'archivo' => $urlTxt
+                ]);
+            }
 
 
             // 🧠 Consulta general
@@ -347,8 +491,6 @@ class RetroalimentacionAIController extends Controller
             return response()->json(['error' => 'Error al procesar la consulta.'], 500);
         }
     }
-
-
 
     private function obtenerCursosDelDocenteDesdeMoodle(int $userIdMoodle): array
     {

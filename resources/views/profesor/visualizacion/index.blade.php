@@ -150,7 +150,7 @@
                 scales: {
                     x: {
                         beginAtZero: true,
-                        max: 100
+                        max: 10
                     }
                 }
             }

@@ -9,6 +9,13 @@
 @section('content')
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <!-- Botones rápidos -->
+    <div class="mb-3">
+        <button class="btn btn-outline-secondary btn-sm" onclick="enviarMensajeIA('🧠 Genera un banco de preguntas GIFT desde el PDF')">
+            🧠 Generar banco de preguntas GIFT desde el PDF
+        </button>
+    </div>
+
     <div class="card" style="height: 70vh; display: flex; flex-direction: column;">
         <div id="chat" class="card-body overflow-auto" style="flex-grow: 1; background: #f5f5f5; padding: 1rem;">
             <!-- Aquí aparecerán los mensajes del chat -->
@@ -18,7 +25,7 @@
             <form id="form-chat" enctype="multipart/form-data">
                 <div class="input-group">
                     <input type="file" name="archivo" id="archivo" accept="application/pdf" class="form-control" style="max-width: 200px;">
-                    <textarea name="message" id="message" rows="1" class="form-control" placeholder="Escribe tu mensaje o sube un PDF…" style="resize: none;"></textarea>
+                    <textarea name="message" id="message" rows="1" class="form-control" placeholder="Escribe tu mensaje o presiona Enter…" style="resize: none;"></textarea>
                     <button type="submit" class="btn btn-primary">Enviar</button>
                 </div>
             </form>
@@ -52,10 +59,45 @@
             bubble.classList.add('bg-light', 'border');
         }
 
-        bubble.innerText = content;
+        bubble.innerHTML = parseMarkdown(content);
         wrapper.appendChild(bubble);
         chatBox.appendChild(wrapper);
         scrollToBottom();
+    }
+
+    function appendSugerencias(sugerencias) {
+        const container = document.createElement('div');
+        container.classList.add('d-flex', 'flex-wrap', 'gap-2', 'mb-3');
+
+        sugerencias.forEach(originalText => {
+            const cleanText = originalText.replace(/^[^\w]*\s*/, '');
+
+            const btn = document.createElement('button');
+            btn.textContent = cleanText;
+            btn.classList.add('btn', 'btn-outline-primary', 'btn-sm');
+            btn.type = 'button';
+
+            btn.addEventListener('click', () => {
+                enviarMensajeIA(originalText);
+            });
+
+            container.appendChild(btn);
+        });
+
+        chatBox.appendChild(container);
+        scrollToBottom();
+    }
+
+    function enviarMensajeIA(texto) {
+        textarea.value = texto;
+        form.dispatchEvent(new Event('submit'));
+    }
+
+    function parseMarkdown(text) {
+        return text
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\n/g, '<br>')
+            .replace(/^- (.*)/gm, '• $1');
     }
 
     form.addEventListener('submit', async function (e) {
@@ -97,6 +139,10 @@
             if (response.ok) {
                 appendMessage(data.respuesta ?? '✅ Procesado correctamente.', 'ia');
 
+                if (data.sugerencias && Array.isArray(data.sugerencias)) {
+                    appendSugerencias(data.sugerencias);
+                }
+
                 const fileWrapper = document.createElement('div');
                 fileWrapper.classList.add('d-flex', 'gap-2', 'mt-2');
 
@@ -118,6 +164,15 @@
                     fileWrapper.appendChild(linkPdf);
                 }
 
+                if (data.gift) {
+                    const linkGift = document.createElement('a');
+                    linkGift.href = data.gift;
+                    linkGift.innerText = '🎁 Descargar archivo GIFT';
+                    linkGift.classList.add('btn', 'btn-outline-success', 'btn-sm');
+                    linkGift.target = "_blank";
+                    fileWrapper.appendChild(linkGift);
+                }
+
                 if (fileWrapper.children.length > 0) {
                     chatBox.appendChild(fileWrapper);
                     scrollToBottom();
@@ -134,6 +189,13 @@
 
         textarea.value = '';
         document.getElementById('archivo').value = '';
+    });
+
+    textarea.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            form.dispatchEvent(new Event('submit'));
+        }
     });
 </script>
 @stop
