@@ -164,6 +164,7 @@ Route::middleware('auth')->group(function () {
             return response()->download($path);
         })->name('docente.ia.descargar');
 
+        // Generar PDF desde IA (GET)
         // Generar PDF desde IA (POST)
         Route::post('/docente/asistente-ia/pdf', [RetroalimentacionAIController::class, 'generarPDFDesdeIA'])
             ->name('docente.ia.generarPDF');
