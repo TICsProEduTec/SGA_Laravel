@@ -12,8 +12,8 @@ services:
         - ./nginx-snippets:/snippets:ro
       environment:
         TZ: 'America/Guayaquil'
-        INITIAL_ADMIN_EMAIL: admin-japp@jaap-mariscal-sucre.site
-        INITIAL_ADMIN_PASSWORD: tV3q5LHqY4hH
+        INITIAL_ADMIN_EMAIL: 
+        INITIAL_ADMIN_PASSWORD: 
       networks:
         - laravel-production
 
